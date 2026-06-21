@@ -4,29 +4,52 @@ import User from '../models/User.js';
 import { registerSchema, loginSchema } from '../schemas/authSchemas.js';
 
 export const registerUser = async (req, res, next) => {
-  // TODO:
-  // 1. Validate the request body (req.body) using registerSchema.safeParse().
-  //    If validation fails, extract validation errors and throw/pass a 400 Bad Request error.
-  // 2. Check if a User with the given username already exists in the database.
-  //    Use User.findOne({ username }).lean().
-  //    If the user exists, throw/pass a 409 Conflict error.
-  // 3. Hash the plain text password from the request body using bcrypt.hash(password, 10).
-  // 4. Create and save the new User in the database with the hashed password.
-  // 5. Send a 201 Created response containing a message, e.g., { message: 'User registered successfully' }.
+
+  const validation = registerSchema.safeParse(req.body)
+  if (!validation.success) {
+    const errors = validation.error.issues.map(issue => issue.message)
+    return res.status(400).json({ message: errors.join(', ') })
+  }
+
+  const {username, password} = validation.data;
+
+  const existingUser = await User.findOne({username}).lean()
+
+  if(existingUser){
+    return res.status(409).json({message: 'User already exists'})
+  }
+
+  await User.create({username, password}); // hashind done in the model layer.
+  return res.status(201).json({message: 'User registered successfully'})
+
 };
 
 export const loginUser = async (req, res, next) => {
-  // TODO:
-  // 1. Validate the request body (req.body) using loginSchema.safeParse().
-  //    If validation fails, extract validation errors and throw/pass a 400 Bad Request error.
-  // 2. Query the database to find the user by username.
-  //    Use User.findOne({ username }).lean() to get the password hash.
-  //    If the user does not exist, throw/pass a 401 Unauthorized error.
-  // 3. Compare the request password with the hashed password from the database using bcrypt.compare(password, user.password).
-  //    If they don't match, throw/pass a 401 Unauthorized error.
-  // 4. Sign a JWT token using jwt.sign.
-  //    Payload shape: { userId: user._id, username: user.username }.
-  //    Secret: process.env.JWT_SECRET.
-  //    Expires: process.env.JWT_EXPIRES_IN (default to '7d' if not specified).
-  // 5. Return a 200 OK response with the generated token, e.g., { token, username: user.username }.
+
+  const validation = loginSchema.safeParse(req.body);
+  if (!validation.success) {
+    const errors = validation.error.issues.map(issue => issue.message)
+    return res.status(400).json({ message: errors.join(', ') })
+  }
+
+  const {username, password} = validation.data;
+  const user = await User.findOne({username});
+
+  if (!user) {
+    return res.status(401).json({ message: 'User does not exist'})
+  }
+
+  const isPasswordValid = await user.comparePassword(password);
+
+  if(!isPasswordValid){
+    return res.status(401).json({message: 'Incorrect password'})
+  }
+
+  const token = jwt.sign(
+    {userId: user._id, username: user.username},
+    process.env.JWT_SECRET,
+    {expiresIn: process.env.JWT_EXPIRES_IN || '7d'}
+  )
+
+  return res.status(200).json({token, username: user.username});
 };
