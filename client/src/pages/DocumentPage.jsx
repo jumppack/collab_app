@@ -25,10 +25,11 @@ export const DocumentPage = () => {
   const fetchDocument = async () => {
     try {
       const data = await request(`/api/documents/${id}`, { method: 'GET' });
-      if (data) {
-        setDoc(data);
-        setTitle(data.title || '');
-        setContent(data.content || '');
+      const document = data?.document || data;
+      if (document) {
+        setDoc(document);
+        setTitle(document.title || '');
+        setContent(document.content || '');
       }
     } catch (err) {
       console.error('Failed to load document:', err);
@@ -41,27 +42,19 @@ export const DocumentPage = () => {
 
   // Determine if current user is owner
   const isOwner = doc && (
-    // TODO: Practice Task - Verify if the logged-in user is the owner
-    // Compare doc.owner (which could be a string ID, or an object containing _id or username)
-    // with user.userId or user.username.
-    
-    // Partial code structure:
     doc.owner === user?.userId ||
-    doc.owner?._id === user?.userId
+    doc.owner?._id === user?.userId ||
+    doc.owner?.username === user?.username ||
+    (typeof doc.owner === 'object' && String(doc.owner) === user?.userId)
   );
 
   // Determine if current user has access (either owner or collaborator)
   const hasAccess = doc && (
-    // TODO: Practice Task - Check if the user is authorized to view/edit
-    // The user has access if they are the owner OR if their userId or username is present
-    // in the doc.collaborators array.
-    
-    // Partial code structure:
     isOwner ||
     (Array.isArray(doc.collaborators) &&
       doc.collaborators.some((collab) => {
-        // Return true if collab (as string ID or object containing _id or username) matches user
-        return false; // Replace with actual check
+        const collabId = typeof collab === 'object' ? (collab._id || collab.username || collab) : collab;
+        return collabId === user?.userId || collabId === user?.username;
       }))
   );
 
@@ -72,13 +65,11 @@ export const DocumentPage = () => {
     setSaveErrorMsg('');
 
     try {
-      // TODO: Practice Task - Perform the PUT request to save the document details
-      // 1. Call `request` with path `/api/documents/${id}`
-      // 2. Set method to 'PUT' and send JSON-stringified body containing `{ title, content }`
-      // 3. Keep the state updates for the updated document below.
-      
-      // Partial code structure:
-      const updated = null; // Replace with await request(...)
+      const result = await request(`/api/documents/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title, content }),
+      });
+      const updated = result?.document || result;
       if (updated) {
         setDoc(updated);
         setSaveStatus('saved');

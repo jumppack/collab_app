@@ -1,87 +1,44 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 
 export const AuthContext = createContext(null);
-
-const decodeToken = (token) => {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    
-    const base64Url = parts[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const pad = base64.length % 4;
-    let paddedBase64 = base64;
-    if (pad === 2) paddedBase64 += '==';
-    else if (pad === 3) paddedBase64 += '=';
-    
-    const jsonPayload = decodeURIComponent(
-      atob(paddedBase64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    
-    return JSON.parse(jsonPayload);
-  } catch (error) {
-    console.error('Error decoding JWT token:', error);
-    return null;
-  }
-};
 
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => localStorage.getItem('token') || null);
   const [user, setUser] = useState(() => {
-    const savedToken = localStorage.getItem('token');
-    if (savedToken) {
-      const decoded = decodeToken(savedToken);
-      if (decoded) {
-        return { userId: decoded.userId, username: decoded.username };
-      }
+    const savedUser = localStorage.getItem('user');
+    try {
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      console.error('Error parsing user from localStorage:', e);
+      return null;
     }
-    return null;
   });
 
-  const login = (newToken) => {
-    // TODO: Practice Task - Complete the login function
-    // 1. Save the newToken to localStorage under 'token'.
-    // 2. Update the token state using setToken.
-    // 3. Decode the token using decodeToken(newToken).
-    // 4. If valid, set the user state to { userId: decoded.userId, username: decoded.username }.
-    //    Otherwise, set the user state to null.
-    
-    // Partial code structure:
-    const decoded = decodeToken(newToken);
-    if (decoded) {
-      // Set local storage, token state, and user state here
-    } else {
-      setUser(null);
-    }
-  };
+  const login = useCallback((newToken, userData) => {
+    localStorage.setItem('token', newToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+    setToken(newToken);
+    setUser(userData);
+  }, []);
 
-  const logout = () => {
-    // TODO: Practice Task - Complete the logout function
-    // 1. Remove the 'token' item from localStorage.
-    // 2. Set both token and user state to null.
-    
-    // Partial code structure:
+  const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
     setUser(null);
-  };
+  }, []);
 
   // Keep state sync in case of local storage changes in other tabs
   useEffect(() => {
     const handleStorageChange = () => {
       const savedToken = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+      
       if (savedToken !== token) {
-        if (savedToken) {
-          setToken(savedToken);
-          const decoded = decodeToken(savedToken);
-          if (decoded) {
-            setUser({ userId: decoded.userId, username: decoded.username });
-          } else {
-            setUser(null);
-          }
-        } else {
-          setToken(null);
+        setToken(savedToken || null);
+        try {
+          setUser(savedUser ? JSON.parse(savedUser) : null);
+        } catch (e) {
           setUser(null);
         }
       }

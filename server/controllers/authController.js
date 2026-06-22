@@ -51,5 +51,11 @@ export const loginUser = async (req, res, next) => {
     {expiresIn: process.env.JWT_EXPIRES_IN || '7d'}
   )
 
-  return res.status(200).json({token, username: user.username});
+  return res.status(200).json({
+    token,
+    user: {
+      userId: user._id,
+      username: user.username
+    }
+  });
 };

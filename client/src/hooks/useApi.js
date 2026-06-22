@@ -1,4 +1,5 @@
 import { useState, useContext, useCallback } from 'react';
+import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
 
 export const useApi = () => {
@@ -19,47 +20,52 @@ export const useApi = () => {
         ...options.headers,
       };
 
-      // TODO: Practice Task - Add authorization header
-      // If a JWT token exists in the context, inject it into the headers object
-      // in the format: 'Authorization': `Bearer ${token}`
-      
-      // Partial code structure:
+      // Add authorization header if token exists
       if (token) {
-        // Inject token header here...
+        headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const fetchOptions = {
-        ...options,
+      // Handle JSON-stringified body or object body to make it compatible with axios data
+      let requestData = options.body;
+      if (typeof options.body === 'string') {
+        try {
+          requestData = JSON.parse(options.body);
+        } catch (e) {
+          // Leave as is if parsing fails
+        }
+      }
+
+      const response = await axios({
+        url,
+        method: options.method || 'GET',
         headers,
-      };
+        data: requestData,
+        ...options,
+      });
 
-      const response = await fetch(url, fetchOptions);
-      
-      let responseData;
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        responseData = await response.json();
-      } else {
-        responseData = { message: await response.text() };
-      }
-
-      // TODO: Practice Task - Handle non-OK responses
-      // 1. If response.ok is false, construct and throw an Error object.
-      // 2. Extract the error message from responseData.error?.message or responseData.message, or default to a status message.
-      // 3. Attach responseData.error?.details to errorObj.details so validation or schema errors can be displayed.
-      
-      // Partial code structure:
-      if (!response.ok) {
-        const errorMessage = 'Request failed'; // Replace this with dynamic extraction
-        const errorObj = new Error(errorMessage);
-        // Throw the errorObj here...
-      }
-
+      const responseData = response.data;
       setData(responseData);
       return responseData;
     } catch (err) {
-      setError(err.message || 'Something went wrong');
-      throw err;
+      let errorMessage = 'Something went wrong';
+      let errorDetails = null;
+
+      if (err.response) {
+        // Server responded with non-2xx status code
+        const responseData = err.response.data;
+        errorMessage = responseData?.error?.message || responseData?.message || `Request failed with status ${err.response.status}`;
+        errorDetails = responseData?.error?.details || null;
+      } else if (err.request) {
+        // Request was made but no response received
+        errorMessage = 'No response received from server';
+      } else {
+        errorMessage = err.message;
+      }
+
+      const errorObj = new Error(errorMessage);
+      errorObj.details = errorDetails;
+      setError(errorMessage);
+      throw errorObj;
     } finally {
       setLoading(false);
     }

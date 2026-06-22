@@ -32,7 +32,7 @@ export const LoginPage = () => {
         body: JSON.stringify({ username, password }),
       });
       if (data && data.token) {
-        login(data.token);
+        login(data.token, data.user);
         navigate('/');
       }
     } catch (err) {
